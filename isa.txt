@@ -1,0 +1,69 @@
+# 00_0000_00 // Halt
+
+# 00_0001_xx && imm8    // LDI reg imm8
+
+# 00_0010_xx && imm8    // Load mem[imm8] into reg[xx]
+# 00_0011_xx && imm8    // Store reg[xx] into mem[imm8]
+
+# 00_0100_xx && imm8    // IN reg[ xx ] = IO[ imm8 ]
+# 00_0101_xx && imm8    // IN reg[ xx ] = IO[ reg[ imm8 ] ]
+
+# 00_0110_xx && imm8    // OUT IO[ imm8 ] = reg[ xx ]
+# 00_0111_xx && imm8    // OUT IO[ reg[ imm8 ] ] = reg[ xx ]
+
+# 00_1000_xx            // FSWAP Reg, swaps the contents of the flags and the given register.
+
+# 00_1001_xx            // SHR shifts the contents of reg[xx] to the right by 1
+# 00_1010_xx            // SHL shifts the contents of reg[xx] to the left by 1
+
+# 00_1011_xx            // SET INTERRUPT ADDRESS (sets the interrupt address to reg[xx]
+# 00_1100_00            // ENABLE INTERRUPT
+# 00_1100_01            // CLEAR INTERRUPT (while interrupts are disabled, they can get into a queue, this removes that.
+# 00_1100_10            // DISABLE INTERRUPT
+# 00_1100_11            // RETURN FROM INTERRUPT
+# 00_1101_00            // CALL INTERRUPT (won't work if disabled)
+# 00_1101_01            // GET INTERRUPT CAUSE (loads a code into R0 which was given by the caller)
+
+# 00_1101_10            // Reset
+# 00_1101_11            // No Op
+# 00_1110_00            // Clear Flags
+
+# 00_1110_xx            // Rotate right (uses the carry flag) reg[xx]
+# 00_1111_xx            // Rotate left (uses the carry flag) reg[xx]
+
+// ALU Operations:
+// # 01_xx_yy_zz // xx: op code, yy: regA, zz: regB
+
+# 01_00_yy_zz // add regB = regA + regB
+# 01_01_yy_zz // sub regB = regB - regA
+
+# 01_10_yy_zz // add regA + regB // Note: the result doesnt actually gets saved here, only the flags get updated
+# 01_11_yy_zz // sub regB - regA
+
+// Logical operations:
+// # 10_op_xx_yy
+
+# 10_00xxyy // AND reg[yy] = reg[xx] && reg[yy]
+# 10_01xxyy // XOR reg[yy] = reg[xx] |^ reg[yy]
+# 10_10xxyy // OR  reg[yy] = reg[xx] || reg[yy]
+
+# 10_11xxyy // Move reg[yy] = reg[xx]
+
+// Memory and jumps
+// Memory Load/Store
+# 11_00_xxyy    // Load, reg[xx] = mem[reg[yy]];
+# 11_01_xxyy    // Store, mem[reg[yy]] = reg[xx]];
+
+// Jumps
+# 11_10_ccc_r && imm8  // JMP IF CC to imm8/reg[imm8] (if r is true, its a reg)
+# 11_11_ccc_r && imm8  // JMPR IF CC to PC + imm8/reg[imm8]
+
+// Conditions:
+// 000: always
+// 001: carry
+// 010: not carry
+// 011: overflow
+// 100: not overflow
+// 101: zero
+// 110: not zero
+// 111: signed

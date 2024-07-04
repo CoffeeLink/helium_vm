@@ -1,0 +1,12 @@
+[package]
+name = "helium_vm"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = { version = "4.5.8", features = ["derive"] }
+owo-colors = "4.0.0"
+bitmatch = "0.1.1"
+log = "0.4.22"

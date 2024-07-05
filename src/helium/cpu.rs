@@ -422,7 +422,7 @@ impl CPU {
 
         self.carry = carry | f_carry;
         self.zero = f_sum == 0;
-        self.overflow = false; // can't TODO: validate this please.
+        self.overflow = self.registers[reg_b].checked_sub(self.registers[reg_a]).is_none(); // If it overflows, the function will return none.
         self.signed = (f_sum & 128) == 128;
 
         if save {

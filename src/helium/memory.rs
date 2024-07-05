@@ -1,4 +1,4 @@
-use owo_colors::{OwoColorize, Rgb, Style};
+use owo_colors::{OwoColorize, Style};
 use crate::utils::chars::*;
 /// Responsible for making sure there is a "ROM" block in the memory.
 #[derive(Debug, Copy, Clone)]
@@ -87,7 +87,7 @@ impl MemoryControl {
                 };
                 index += 1;
 
-                let mut hex = format!("{:02X}", value);
+                let hex = format!("{:02X}", value);
 
                 if value == 0 {
                     hex_part.push_str(&format!("{}", hex.dimmed()));

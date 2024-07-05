@@ -434,18 +434,18 @@ impl CPU {
         match condition_code {
             0 => self.program_counter = address,
 
-            1 if self.carry => self.program_counter = address,
-            2 if !self.carry => self.program_counter = address,
+            1 => if self.carry { self.program_counter = address},
+            2 => if !self.carry { self.program_counter = address},
 
-            3 if self.overflow => self.program_counter = address,
-            4 if !self.overflow => self.program_counter = address,
+            3 => if self.overflow { self.program_counter = address},
+            4 => if !self.overflow { self.program_counter = address},
 
-            5 if self.zero => self.program_counter = address,
-            6 if !self.zero => self.program_counter = address,
+            5 => if self.zero { self.program_counter = address},
+            6 => if !self.zero { self.program_counter = address},
 
-            7 if self.signed => self.program_counter = address,
+            7 => if self.signed { self.program_counter = address},
 
-            _ => panic!("INVALID CONDITION CODE GIVEN: {:08b}", condition_code)
+            _ => panic!("INVALID CONDITION CODE GIVEN: {:08b} {}", condition_code, condition_code)
         }
     }
     

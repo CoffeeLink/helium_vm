@@ -1,3 +1,4 @@
+#![allow(unused)]
 pub const CORNER_R: char = '\u{2510}';
 pub const CORNER_L: char = '\u{250c}';
 pub const CORNEL_DL: char = '\u{2514}';

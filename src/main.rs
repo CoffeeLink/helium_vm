@@ -7,8 +7,7 @@ use std::path::PathBuf;
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::process::exit;
-use std::thread::sleep;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use ansi_escapes::CursorUp;
 
 use crate::helium::prelude::*;
@@ -28,6 +27,10 @@ struct Cli {
     #[arg(short, long, value_name = "Step rate(f)", default_value = "2")]
     step_rate: f32,
     
+    /// Disables the UI for the CPU state
+    #[arg(long, default_value = "false")]
+    no_gui: bool,
+
     /// Enables debug controls
     #[arg(short, long)]
     debug: bool,
@@ -42,32 +45,51 @@ fn main() {
         exit(-1)
     }).unwrap();
 
-    let mut device_mounter = IOController::new();
+    let millis_per_iter = 1000f32 / config.step_rate;
+    let per_iter_duration = Duration::from_millis(millis_per_iter.round() as u64);
 
+    #[allow(unused_mut)]
+    let mut device_mounter = IOController::new();
+    
     let mut cpu = CPU::new(device_mounter, rom);
+    
+    
     cpu.start();
-    update_state_ui(&cpu, true);
+    if !config.no_gui {
+        update_state_ui(&cpu, true);
+    }
+
+    let mut start = Instant::now();
 
     while cpu.is_on {
-        sleep(Duration::from_millis(500)); // 1 step per sec
-        cpu.next();
-        update_state_ui(&cpu, false);
+        let elapsed = start.elapsed();
+
+        // If enough time has passed, run it again.
+        if elapsed >= per_iter_duration {
+            cpu.next();
+            
+            if !config.no_gui {
+                update_state_ui(&cpu, false);
+            }
+
+            start = Instant::now();
+        }
     }
 }
 
 fn update_state_ui(cpu: &CPU, first_update: bool) {
     let cpu_state_ui = cpu.generate_state_ui();
     let memory_state_ui = cpu.memory.draw_hexdump();
-    
+
     let out = format!("{}\n{}", cpu_state_ui, memory_state_ui);
     let line_count = out.lines().count();
-    
+
     let mut final_out = String::new();
-    
+
     if !first_update {
         final_out = format!("{}", CursorUp(line_count as u16));
     }
-    
+
     final_out.push_str(&out);
     println!("{}", final_out);
 }

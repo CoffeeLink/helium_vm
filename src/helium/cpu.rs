@@ -1,11 +1,12 @@
-#![feature(bigint_helper_methods)]
 use bitmatch::bitmatch;
+use owo_colors::{OwoColorize, Style};
 use crate::helium::io_controller::IOController;
 use crate::helium::memory::MemoryControl;
+use crate::utils::chars::*;
 
 #[derive(Debug)]
 pub struct CPU {
-    pub registers: [u8; 4], // A, B, C, D
+    registers: [u8; 4], // A, B, C, D
 
     instruction_reg: u8,
     program_counter: u8,
@@ -23,8 +24,8 @@ pub struct CPU {
     zero: bool,
     signed: bool,
 
-    memory: MemoryControl,
-    io_ctl: IOController,
+    pub memory: MemoryControl,
+    pub io_ctl: IOController,
 
     pub is_on: bool,
 }
@@ -53,7 +54,7 @@ impl CPU {
             memory: mem,
             io_ctl: devices,
 
-            is_on: false
+            is_on: false,
         }
     }
 
@@ -77,15 +78,29 @@ impl CPU {
         self.signed = false;
 
         //self.memory.reset_mem();
-        //self.io_ctl.reset();
+        self.io_ctl.reset();
     }
 
     pub fn start(&mut self) {
+        self.io_ctl.startup();
         self.is_on = true;
     }
 
+    /// Causes a interrupt request.
+    pub fn interrupt(&mut self) { self.interrupt_req = true; }
+
     #[bitmatch]
     pub fn next(&mut self) {
+        // CHECK FOR INTERRUPT
+        if self.interrupt_enabled && !self.in_interrupt && self.interrupt_req {
+            self.in_interrupt = true;
+            self.interrupt_req = false;
+
+            self.secondary_counter = self.program_counter;
+            self.program_counter = self.interrupt_addr;
+        }
+
+
         // load instruction
         self.instruction_reg = self.memory.get(self.program_counter);
         // increment program counter.
@@ -93,7 +108,10 @@ impl CPU {
 
         // Decode instruction
         // These are for the liter
+
+        #[allow(unused_variables)]
         let x: u8 = 0;
+        #[allow(unused_variables)]
         let y: u8 = 0;
 
         #[bitmatch]
@@ -132,16 +150,19 @@ impl CPU {
                 let io_addr = self.memory.get(self.program_counter);
                 self.program_counter = self.program_counter.overflowing_add(1).0;
 
-                //TODO: finnish IO ops.
-                eprintln!("IN Not Implemented");
+                self.registers[reg] = self.io_ctl.read(io_addr);
             }
             "00_0101_xx" => {
                 // IN (reg(imm))
                 let reg = x as usize;
-                let io_addr = self.memory.get(self.program_counter);
+                let mut io_addr_reg = self.memory.get(self.program_counter);
                 self.program_counter = self.program_counter.overflowing_add(1).0;
 
-                eprintln!("IN Not Implemented")
+                if io_addr_reg > 3 { io_addr_reg = 0; } // Bounds check
+
+                let io_addr = self.registers[io_addr_reg as usize];
+                self.registers[reg] = self.io_ctl.read(io_addr);
+
             }
 
             "00_0110_xx" => {
@@ -150,15 +171,18 @@ impl CPU {
                 let io_addr = self.memory.get(self.program_counter);
                 self.program_counter = self.program_counter.overflowing_add(1).0;
 
-                eprintln!("OUT Not implemented");
+                self.io_ctl.write(io_addr, self.registers[reg]);
             }
             "00_0111_xx" => {
                 //OUT reg(imm)
                 let reg = x as usize;
-                let io_addr = self.memory.get(self.program_counter);
+                let mut io_addr_reg = self.memory.get(self.program_counter);
                 self.program_counter = self.program_counter.overflowing_add(1).0;
 
-                eprintln!("OUT Not implemented");
+                if io_addr_reg > 3 { io_addr_reg = 0; } // Bounds check
+
+                let io_addr = self.registers[io_addr_reg as usize];
+                self.io_ctl.write(io_addr, self.registers[reg]);
             }
             "00_1000_xx" => {
                 // FSWAP
@@ -351,6 +375,8 @@ impl CPU {
                 println!("unknown instruction: {a:08b}");
             }
         }
+        // After everything
+        self.io_ctl.update();
     }
 
     fn flags_into_u8(&mut self) -> u8 {
@@ -421,5 +447,125 @@ impl CPU {
 
             _ => panic!("INVALID CONDITION CODE GIVEN: {:08b}", condition_code)
         }
+    }
+    
+    fn bin_repr(value: u8) -> String {
+        let mut out_style = Style::new().white();
+        let mut binary_repr = format!("{:08b}", value);
+        
+        binary_repr.insert(4, ' ');
+        
+        if value == 0 {
+            out_style = out_style.dimmed();
+        }
+        
+        format!("{} {}{:03}{} {}",
+                              binary_repr.style(out_style),
+                              "[".dimmed().bold(),
+                              value,
+                              "]".dimmed().bold(),
+                              V_LINE
+        )
+    }
+    
+    fn hex_repr(value: u8) -> String {
+        let rerp = format!("{:02X}", value);
+        return if value == 0 {
+            format!("{}", rerp.dimmed())
+        } else {
+            rerp
+        }
+    }
+    
+    fn flag_repr(name: &str, state: bool) -> String {
+        let mut out_style = Style::new().bright_red();
+        if state {
+            out_style = out_style.bright_green();
+        }
+        format!("{}", name.style(out_style))
+    }
+    
+    pub fn generate_state_ui(&self) -> String {
+        let mut out = String::new();
+
+        // UI Design
+
+        // Length: 80 chars <- target pls hit.
+        //  Formatting:
+        // If a value is 0, .dimmed()
+        // If a flag is 0,  .dimmed()/.red() [Subject to change]
+        // If a flag is 1,  .bright_green()
+        // A value name like r1 / PC must be Bold
+
+        // ################################################################################
+        // ┌────| Registers |────┬─────────────────────┬────────┬────────┬────| Flags |───┐
+        // | r0: 0000 0000 [000] | r2: 0000 0000 [000] | PC: 00 | IA: 00 | ZE, SI, CA, OV |
+        // | r1: 0000 0000 [000] | r3: 0000 0000 [000] | IR: 00 | IC: 00 | IR, IE, IQ, CK |
+        // +---------------------+---------------------+--------+--------+----------------+
+        // ┌─────────────────────| Memory View |──────────────────────┬──| ASCII view |───┐
+        
+        // Header
+        out.push_str("┌────| Registers |────┬─────────────────────┬────────┬────────┬────| Flags |───┐\n");
+        
+        // r0 and r2
+        out.push(V_LINE);
+        out.push_str(&format!(" {} {}",
+            "r0:".bold().green(), &Self::bin_repr(self.registers[0])
+        ));
+        out.push_str(&format!(" {} {}",
+                              "r2:".bold().green(), &Self::bin_repr(self.registers[2])
+        ));
+        
+        // PC
+        out.push_str(&format!(" {} {} {}",
+                              "PC:".bold().green(), Self::hex_repr(self.program_counter), V_LINE
+        ));
+        // IA
+        out.push_str(&format!(" {} {} {}", 
+                              "IA:".bold().green(), Self::hex_repr(self.interrupt_addr), V_LINE
+        ));
+        // Flags Z,S,C,O
+        out.push_str(&format!(
+            " {}, {}, {}, {} {}\n", // ZE, SI, OV |
+            Self::flag_repr("ZE", self.zero),
+            Self::flag_repr("SI", self.signed),
+            Self::flag_repr("CA", self.carry),
+            Self::flag_repr("OV", self.overflow),
+            V_LINE
+        ));
+        
+        // Line 2
+
+        out.push(V_LINE);
+        // R1, R3
+        out.push_str(&format!(" {} {}",
+                              "r1:".bold().green(), &Self::bin_repr(self.registers[1])
+        ));
+        out.push_str(&format!(" {} {}",
+                              "r3:".bold().green(), &Self::bin_repr(self.registers[3])
+        ));
+        
+        // IR
+        out.push_str(&format!(" {} {} {}",
+                              "PC:".bold().green(), Self::hex_repr(self.instruction_reg), V_LINE
+        ));
+        // IC
+        out.push_str(&format!(" {} {} {}",
+                              "IA:".bold().green(), Self::hex_repr(self.interrupt_code), V_LINE
+        ));
+
+        // Flags Z,S,C,O
+        out.push_str(&format!(
+            " {}, {}, {}, {} {}\n", // ZE, SI, OV |
+            Self::flag_repr("IN", self.in_interrupt),
+            Self::flag_repr("IE", self.interrupt_enabled),
+            Self::flag_repr("IQ", self.interrupt_req),
+            Self::flag_repr("ON", self.is_on),
+            V_LINE
+        ));
+        
+        // Footer
+        out.push_str("└─────────────────────┴─────────────────────┴────────┴────────┴────────────────┘");
+        out
     }
 }

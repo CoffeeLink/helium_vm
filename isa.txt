@@ -28,8 +28,8 @@
 # 00_1101_11            // No Op
 # 00_1110_00            // Clear Flags
 
-# 00_1110_xx            // Rotate right (uses the carry flag) reg[xx]
-# 00_1111_xx            // Rotate left (uses the carry flag) reg[xx]
+# 00_1110_xx            // Load Program counter into reg[xx]
+# 00_1111_xx            // Rotate right (uses the carry flag) reg[xx]
 
 // ALU Operations:
 // # 01_xx_yy_zz // xx: op code, yy: regA, zz: regB

@@ -16,7 +16,9 @@ pub struct CPU {
     interrupt_code: u8,
     interrupt_req: bool,
     interrupt_enabled: bool,
-
+    
+    /// When a software interrupt occurs, this will be toggled as true.
+    interrupt_queued: bool,
     in_interrupt: bool,
 
     carry: bool,
@@ -43,7 +45,7 @@ impl CPU {
             interrupt_enabled: false,
             interrupt_code: 0,
             interrupt_addr: 0,
-
+            interrupt_queued: false,
             in_interrupt: false,
 
             carry: false,
@@ -69,7 +71,7 @@ impl CPU {
 
         self.interrupt_req = false;
         self.interrupt_enabled = false;
-
+        self.interrupt_queued = false;
         self.in_interrupt = false;
 
         self.carry = false;
@@ -92,10 +94,18 @@ impl CPU {
     #[bitmatch]
     pub fn next(&mut self) {
         // CHECK FOR INTERRUPT
-        if self.interrupt_enabled && !self.in_interrupt && self.interrupt_req {
+        if self.interrupt_enabled && !self.in_interrupt && self.interrupt_req && !self.interrupt_queued {
             self.in_interrupt = true;
             self.interrupt_req = false;
 
+            self.secondary_counter = self.program_counter;
+            self.program_counter = self.interrupt_addr;
+        }
+        
+        if self.interrupt_queued && !self.in_interrupt {
+            self.in_interrupt = true;
+            self.interrupt_queued = false;
+            
             self.secondary_counter = self.program_counter;
             self.program_counter = self.interrupt_addr;
         }
@@ -238,7 +248,7 @@ impl CPU {
             "00_1101_00" => {
                 // Call Interrupt
                 self.interrupt_code = 0;
-                self.interrupt_req = true;
+                self.interrupt_queued = true;
             }
             "00_1101_01" => {
                 // Get INT code
@@ -248,20 +258,18 @@ impl CPU {
             "00_1101_10" => { self.reset(); }
             "00_1101_11" => { /* No Operation */ }
 
-            // rotation
+            
             "00_1110_xx" => {
+                // LPC Load Program Counter
+                let reg = x as usize;
+                self.registers[reg] = self.program_counter;
+            }
+            "00_1111_xx" => {
                 // Rotate right
                 let reg = x as usize;
                 let value = self.registers[reg];
                 self.carry = (value & 1) == 1;
                 self.registers[reg] = value.rotate_right(1);
-            }
-            "00_1111_xx" => {
-                // Rotate left
-                let reg = x as usize;
-                let value = self.registers[reg];
-                self.carry = (value & 128) == 128;
-                self.registers[reg] = value.rotate_left(1);
             }
 
             //ALU ops
@@ -377,6 +385,13 @@ impl CPU {
         }
         // After everything
         self.io_ctl.update();
+        // Check for interrupts
+        if let Some(code) = self.io_ctl.device_has_interrupt_request() {
+            if !self.interrupt_queued { // Software interrupts have priority.
+                self.interrupt_req = true;
+                self.interrupt_code = code;
+            }
+        }
     }
 
     fn flags_into_u8(&mut self) -> u8 {
@@ -448,17 +463,17 @@ impl CPU {
             _ => panic!("INVALID CONDITION CODE GIVEN: {:08b} {}", condition_code, condition_code)
         }
     }
-    
+
     fn bin_repr(value: u8) -> String {
         let mut out_style = Style::new().white();
         let mut binary_repr = format!("{:08b}", value);
-        
+
         binary_repr.insert(4, ' ');
-        
+
         if value == 0 {
             out_style = out_style.dimmed();
         }
-        
+
         format!("{} {}{:03}{} {}",
                               binary_repr.style(out_style),
                               "[".dimmed().bold(),
@@ -467,7 +482,7 @@ impl CPU {
                               V_LINE
         )
     }
-    
+
     fn hex_repr(value: u8) -> String {
         let rerp = format!("{:02X}", value);
         return if value == 0 {
@@ -476,7 +491,7 @@ impl CPU {
             rerp
         }
     }
-    
+
     fn flag_repr(name: &str, state: bool) -> String {
         let mut out_style = Style::new().bright_red();
         if state {
@@ -484,7 +499,7 @@ impl CPU {
         }
         format!("{}", name.style(out_style))
     }
-    
+
     pub fn generate_state_ui(&self) -> String {
         let mut out = String::new();
 
@@ -503,10 +518,10 @@ impl CPU {
         // | r1: 0000 0000 [000] | r3: 0000 0000 [000] | IR: 00 | IC: 00 | IR, IE, IQ, CK |
         // +---------------------+---------------------+--------+--------+----------------+
         // ┌─────────────────────| Memory View |──────────────────────┬──| ASCII view |───┐
-        
+
         // Header
         out.push_str("┌────| Registers |────┬─────────────────────┬────────┬────────┬────| Flags |───┐\n");
-        
+
         // r0 and r2
         out.push(V_LINE);
         out.push_str(&format!(" {} {}",
@@ -515,13 +530,13 @@ impl CPU {
         out.push_str(&format!(" {} {}",
                               "r2:".bold().green(), &Self::bin_repr(self.registers[2])
         ));
-        
+
         // PC
         out.push_str(&format!(" {} {} {}",
                               "PC:".bold().green(), Self::hex_repr(self.program_counter), V_LINE
         ));
         // IA
-        out.push_str(&format!(" {} {} {}", 
+        out.push_str(&format!(" {} {} {}",
                               "IA:".bold().green(), Self::hex_repr(self.interrupt_addr), V_LINE
         ));
         // Flags Z,S,C,O
@@ -533,7 +548,7 @@ impl CPU {
             Self::flag_repr("OV", self.overflow),
             V_LINE
         ));
-        
+
         // Line 2
 
         out.push(V_LINE);
@@ -544,14 +559,14 @@ impl CPU {
         out.push_str(&format!(" {} {}",
                               "r3:".bold().green(), &Self::bin_repr(self.registers[3])
         ));
-        
+
         // IR
         out.push_str(&format!(" {} {} {}",
-                              "PC:".bold().green(), Self::hex_repr(self.instruction_reg), V_LINE
+                              "IR:".bold().green(), Self::hex_repr(self.instruction_reg), V_LINE
         ));
         // IC
         out.push_str(&format!(" {} {} {}",
-                              "IA:".bold().green(), Self::hex_repr(self.interrupt_code), V_LINE
+                              "IC:".bold().green(), Self::hex_repr(self.interrupt_code), V_LINE
         ));
 
         // Flags Z,S,C,O
@@ -563,7 +578,7 @@ impl CPU {
             Self::flag_repr("ON", self.is_on),
             V_LINE
         ));
-        
+
         // Footer
         out.push_str("└─────────────────────┴─────────────────────┴────────┴────────┴────────────────┘");
         out

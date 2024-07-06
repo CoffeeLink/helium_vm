@@ -3,6 +3,8 @@ use crate::devices::device::Device;
 
 const BUFFER_SIZE: usize = 50;
 
+
+/// A Basic device which has a BUFFER_SIZE long buffer where the CPU can write/read things, and it will get displayed.
 #[derive(Debug)]
 pub struct CharIOBuffer {
     pub buffer: [u8; BUFFER_SIZE],
@@ -29,6 +31,7 @@ impl CharIOBuffer {
         }
     }
     
+    /// Creates an ASCII string from the buffer, if its not ASCII compatible it will be "ERROR STR"
     pub fn as_ascii_str(&self) -> String {
         get_ascii_str(&self.buffer).unwrap_or("ERROR STR").into()
     }
@@ -45,7 +48,8 @@ impl Device for CharIOBuffer {
     fn update_device(&mut self) {
         /* Pass */
     }
-
+    
+    /// Draws the buffer and the Debug ui too, if enabled
     fn draw_ui(&mut self, _no_gui: bool, debug: bool) -> Option<String> {
         let mut out = String::from(self.as_ascii_str());
         
@@ -56,7 +60,8 @@ impl Device for CharIOBuffer {
         
         Some(out)
     }
-
+    
+    /// This will never be Some(...)
     fn has_interrupt_request(&mut self) -> Option<(u8, String)> {
         None
     }

@@ -12,7 +12,8 @@ struct RangedDevice {
     pub device: Box<dyn Device>
 }
 
-/// enables the "Mounting" of IO;
+/// Handles all "Hardware components" / Devices connected to the CPUs IO Bus
+/// Has generalized functions for everything and allows the mounting of Devices in a colliding way (the address ranges can match/intersect)
 #[derive(Debug)]
 pub struct IOController {
     devices: Vec<RangedDevice>,
@@ -63,6 +64,8 @@ impl IOController {
             device.device.reset_device();
         }
     }
+
+    /// Finds the given device and returns a reference to it.
     pub fn find_device<T: Device + 'static>(&self) -> Option<&T> {
         self.devices.iter().filter_map(|device| {
             // Attempt to downcast the device to the specific type T
@@ -77,6 +80,7 @@ impl IOController {
         }
     }
 
+    /// Checks all devices if they would like to cause an interrupt.
     pub fn device_has_interrupt_request(&mut self) -> Option<u8> {
         let mut has_interrupt = false;
         let mut int_code: u8 = 0;
@@ -112,17 +116,19 @@ impl IOController {
             Some(int_code)
         }
     }
-    
+
+    /// Asks every device to create their Strings for the UIs and separates them,
+    /// the returned string will be a collective of the generated UIs.
     pub fn draw_ui(&mut self, no_gui: bool, debug: bool) -> String {
         let mut out_buffer = String::new();
-        
+
         for dev in self.devices.iter_mut() {
             if let Some(ui_str) = dev.device.draw_ui(no_gui, debug) {
                 out_buffer.push_str(&ui_str);
                 out_buffer.push('\n')
             }
         }
-        
+
         out_buffer
     }
 

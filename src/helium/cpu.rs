@@ -4,6 +4,7 @@ use crate::helium::io_controller::IOController;
 use crate::helium::memory::MemoryControl;
 use crate::utils::chars::*;
 
+/// The main CPU, it follows the ISA given in the isa.txt file, each .next() call will complete an instruction.
 #[derive(Debug)]
 pub struct CPU {
     registers: [u8; 4], // A, B, C, D
@@ -16,7 +17,7 @@ pub struct CPU {
     interrupt_code: u8,
     interrupt_req: bool,
     interrupt_enabled: bool,
-    
+
     /// When a software interrupt occurs, this will be toggled as true.
     interrupt_queued: bool,
     in_interrupt: bool,
@@ -91,8 +92,14 @@ impl CPU {
     /// Causes a interrupt request.
     pub fn interrupt(&mut self) { self.interrupt_req = true; }
 
+    /// Executes the next instruction if the CPU is on.
     #[bitmatch]
     pub fn next(&mut self) {
+        // If Off return.
+        if !self.is_on {
+            return;
+        }
+
         // CHECK FOR INTERRUPT
         if self.interrupt_enabled && !self.in_interrupt && self.interrupt_req && !self.interrupt_queued {
             self.in_interrupt = true;
@@ -101,11 +108,11 @@ impl CPU {
             self.secondary_counter = self.program_counter;
             self.program_counter = self.interrupt_addr;
         }
-        
+
         if self.interrupt_queued && !self.in_interrupt {
             self.in_interrupt = true;
             self.interrupt_queued = false;
-            
+
             self.secondary_counter = self.program_counter;
             self.program_counter = self.interrupt_addr;
         }
@@ -258,7 +265,7 @@ impl CPU {
             "00_1101_10" => { self.reset(); }
             "00_1101_11" => { /* No Operation */ }
 
-            
+
             "00_1110_xx" => {
                 // LPC Load Program Counter
                 let reg = x as usize;
@@ -393,7 +400,8 @@ impl CPU {
             }
         }
     }
-
+    
+    /// Turns the active CPU flags into an u8.
     fn flags_into_u8(&mut self) -> u8 {
         (self.signed as u8) << 3
             | (self.carry as u8) << 2
@@ -401,6 +409,7 @@ impl CPU {
             | self.zero as u8
     }
 
+    /// Sets the active CPU flags from an u8.
     fn flags_from_u8(&mut self, flags: u8) {
         self.signed =   (flags & 8) == 8;
         self.carry =    (flags & 4) == 4;
@@ -408,6 +417,7 @@ impl CPU {
         self.zero =     (flags & 1) == 1;
     }
 
+    /// Adds the content of 2 registers together while setting the correct flags and then optionally saving the result.
     fn add(&mut self, reg_a: usize, reg_b: usize, save: bool) {
         let both_same_sign = self.registers[reg_a] & 128 == self.registers[reg_b] & 128;
         let positive = self.registers[reg_a] & 128 == 0;
@@ -431,6 +441,7 @@ impl CPU {
         }
     }
 
+    /// Subtracts the content of 2 registers together while setting the correct flags and then optionally saving the result.
     fn sub(&mut self, reg_a: usize, reg_b: usize, save: bool) {
         let (sum, carry) = self.registers[reg_b].overflowing_sub(self.registers[reg_a]);
         let (f_sum, f_carry) = sum.overflowing_add(1);
@@ -444,7 +455,19 @@ impl CPU {
             self.registers[reg_b] = f_sum;
         }
     }
-
+    
+    /// Handles conditional jumps.
+    /// # Panics:
+    /// Panics if an invalid condition is given.
+    /// # Conditions:
+    /// 0: Always
+    /// 1: if carry
+    /// 2: if !carry
+    /// 3: if overflow
+    /// 4: if !overflow
+    /// 5: if zero
+    /// 6: if !zero
+    /// 7: if signed
     fn jmp_if(&mut self, condition_code: u8, address: u8) {
         match condition_code {
             0 => self.program_counter = address,
@@ -463,7 +486,9 @@ impl CPU {
             _ => panic!("INVALID CONDITION CODE GIVEN: {:08b} {}", condition_code, condition_code)
         }
     }
-
+    
+    
+    /// A Helper function for drawing a register in binary
     fn bin_repr(value: u8) -> String {
         let mut out_style = Style::new().white();
         let mut binary_repr = format!("{:08b}", value);
@@ -483,6 +508,7 @@ impl CPU {
         )
     }
 
+    /// A Helper function for drawing a register in hex
     fn hex_repr(value: u8) -> String {
         let rerp = format!("{:02X}", value);
         return if value == 0 {
@@ -491,7 +517,8 @@ impl CPU {
             rerp
         }
     }
-
+    
+    /// Handles the styling of the flag based of state
     fn flag_repr(name: &str, state: bool) -> String {
         let mut out_style = Style::new().bright_red();
         if state {
@@ -500,6 +527,7 @@ impl CPU {
         format!("{}", name.style(out_style))
     }
 
+    /// The function responsible for generating the state UI
     pub fn generate_state_ui(&self) -> String {
         let mut out = String::new();
 

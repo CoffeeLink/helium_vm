@@ -1,6 +1,8 @@
 use owo_colors::{OwoColorize, Style};
 use crate::utils::chars::*;
 /// Responsible for making sure there is a "ROM" block in the memory.
+/// Allows the reading and writing of memory, 
+/// also has draw_ui which basically generates a styled hexdump of the memory.
 #[derive(Debug, Copy, Clone)]
 pub struct MemoryControl {
     container: [u8; u8::MAX as usize],
@@ -49,7 +51,8 @@ impl MemoryControl {
         self.container[index as usize] = value;
         return true;
     }
-
+    
+    /// Creates a Hexdump lookalike UI
     pub fn draw_hexdump(&self) -> String {
         let mut out = String::new();
 

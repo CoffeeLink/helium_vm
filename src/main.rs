@@ -2,7 +2,7 @@
 #![feature(ascii_char)]
 
 use clap::{Parser, ValueEnum};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::process::exit;
@@ -12,10 +12,13 @@ use crate::devices::stdout_ascii_buffer::CharIOBuffer;
 use crate::devices::telnet_terminal::TelnetTerminal;
 
 use crate::helium::prelude::*;
-mod helium;
-mod devices;
-mod utils;
-mod system_manager;
+
+/// Contains the "Core" of Helium, the CPU, IO-CTL and the memory.
+pub mod helium;
+/// Holds all devices and the Device Trait.
+pub mod devices;
+/// Some utility stuff
+pub mod utils;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -25,7 +28,7 @@ struct Cli {
     rom_file: PathBuf,
 
     /// Defines how many instructions the CPU should complete every second.
-    #[arg(short, long, value_name = "Step rate(f)", default_value = "2")]
+    #[arg(short, long, value_name = "Step rate(f)", default_value = "100")]
     step_rate: f32,
 
     /// What Devices to Link
@@ -42,7 +45,7 @@ struct Cli {
     no_gui: bool,
 
     /// Enables debug controls
-    #[arg(short, long)]
+    #[arg(long)]
     debug: bool,
 
     /// The Port for the TermLink server hosted on 127.0.0.1:??? (only when TermLink is enabled tho)
@@ -50,6 +53,7 @@ struct Cli {
     port: u16
 }
 
+/// This enum holds all available devices for use
 #[derive(ValueEnum, Copy, Clone, Debug, PartialOrd, PartialEq)]
 enum DeviceType {
     TermLink,
@@ -57,6 +61,8 @@ enum DeviceType {
 }
 
 impl DeviceType {
+    /// Used for mounting the device automatically, each device has their own impl of this and this.
+    /// makes mounting stuff easy by just iterating over a list of these and calling mount.
     pub fn mount(&self, cli: &Cli, mounter: &mut IOController) {
         match self {
             DeviceType::TermLink => {
@@ -75,7 +81,7 @@ impl DeviceType {
 fn main() {
     let config = Cli::parse();
 
-    let rom = load_rom(&config)
+    let rom = load_rom(&config.rom_file)
         .map_err(|msg|{
         eprintln!("{}", msg);
         exit(-1)
@@ -127,6 +133,7 @@ fn main() {
     print!("{}", CursorShow);
 }
 
+/// Draws the UI for the CPU and the memory, also clears the screen.
 fn update_state_ui(cpu: &CPU) {
     let cpu_state_ui = cpu.generate_state_ui();
     let memory_state_ui = cpu.memory.draw_hexdump();
@@ -137,8 +144,10 @@ fn update_state_ui(cpu: &CPU) {
     println!("{}{}",ClearScreen, out);
 }
 
-fn load_rom(config: &Cli) -> Result<Vec<u8>, String> {
-    let rom_file = File::open(&config.rom_file)
+
+/// Takes a Path to a file which will be loaded into a 256 long vec, returns error messages if something goes wrong. 
+fn load_rom(path: &Path) -> Result<Vec<u8>, String> {
+    let rom_file = File::open(&path)
         .map_err(|e| format!("Could not open rom-file: {}", e))?;
 
     let rom_meta = rom_file.metadata()

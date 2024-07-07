@@ -20,6 +20,7 @@ pub mod devices;
 /// Some utility stuff
 pub mod utils;
 
+/// Holds all command line arguments.
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Cli {

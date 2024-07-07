@@ -400,7 +400,7 @@ impl CPU {
             }
         }
     }
-    
+
     /// Turns the active CPU flags into an u8.
     fn flags_into_u8(&mut self) -> u8 {
         (self.signed as u8) << 3
@@ -455,7 +455,7 @@ impl CPU {
             self.registers[reg_b] = f_sum;
         }
     }
-    
+
     /// Handles conditional jumps.
     /// # Panics:
     /// Panics if an invalid condition is given.
@@ -486,8 +486,8 @@ impl CPU {
             _ => panic!("INVALID CONDITION CODE GIVEN: {:08b} {}", condition_code, condition_code)
         }
     }
-    
-    
+
+
     /// A Helper function for drawing a register in binary
     fn bin_repr(value: u8) -> String {
         let mut out_style = Style::new().white();
@@ -517,7 +517,7 @@ impl CPU {
             rerp
         }
     }
-    
+
     /// Handles the styling of the flag based of state
     fn flag_repr(name: &str, state: bool) -> String {
         let mut out_style = Style::new().bright_red();

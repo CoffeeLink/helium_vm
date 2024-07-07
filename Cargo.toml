@@ -1,7 +1,11 @@
 [package]
 name = "helium_vm"
-version = "0.1.0"
+version = "0.4.5"
 edition = "2021"
+
+description = "An emulator for the Helium arhitecture."
+authors = ["CoffeeLink <aron@coffeelink.hu>"]
+license = "AGPL-3"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
